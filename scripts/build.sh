@@ -19,6 +19,12 @@ FNPACK_VERSION="1.2.3"
 FNPACK_URL="https://static2.fnnas.com/fnpack/fnpack-${FNPACK_VERSION}-linux-amd64"
 MIN_GO="1.27"
 MIN_NODE_MAJOR="22"
+# 内置 Gitea Runner（Actions 执行器）
+RUNNER_VERSION="6.0.0"
+RUNNER_URL_BASE="https://dl.gitea.com/gitea-runner/${RUNNER_VERSION}"
+# 默认主题（版本号与 Gitea 大版本保持一致）
+THEME_REPO="lutinglt/gitea-github-theme"
+THEME_ASSET="theme-github-extra-pink.tar.gz"
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/.build}"
@@ -147,6 +153,26 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# 主题（GitHub Pink，架构无关，随包分发）
+# ---------------------------------------------------------------------------
+THEME_DIR="$BUILD_DIR/theme-${VERSION}"
+THEME_URL="https://github.com/${THEME_REPO}/releases/download/v${VERSION}/${THEME_ASSET}"
+if [ -d "$THEME_DIR" ] && ls "$THEME_DIR"/*.css >/dev/null 2>&1; then
+    info "主题已下载，跳过：$THEME_DIR"
+else
+    info "下载主题 ${THEME_ASSET}（v${VERSION}）"
+    THEME_TGZ="$BUILD_DIR/theme-${VERSION}.tar.gz"
+    if ! curl -fsSL --retry 3 -o "$THEME_TGZ" "$THEME_URL"; then
+        die "主题下载失败：$THEME_URL（该 Gitea 版本可能尚未发布对应主题）"
+    fi
+    rm -rf "$THEME_DIR"
+    mkdir -p "$THEME_DIR"
+    tar -xzf "$THEME_TGZ" -C "$THEME_DIR" --strip-components=1 || die "主题解包失败"
+    ls "$THEME_DIR"/*.css >/dev/null 2>&1 || die "主题包内没有 css 文件"
+fi
+info "主题文件：$(ls -1 "$THEME_DIR"/*.css | xargs -n1 basename | tr '\n' ' ')"
+
+# ---------------------------------------------------------------------------
 # 编译 + 打包
 # ---------------------------------------------------------------------------
 FNPACK="$BUILD_DIR/fnpack"
@@ -181,6 +207,23 @@ pack_one() {
     [ -s "$bin" ] || die "编译失败：$bin 为空"
     info "二进制 $(du -h "$bin" | cut -f1)：$(file -b "$bin" 2>/dev/null || true)"
 
+    # Gitea Runner（与当前架构一致）
+    local runner="$BUILD_DIR/bin-${VERSION}/gitea-runner-${arch}"
+    if [ ! -x "$runner" ]; then
+        local runner_url="${RUNNER_URL_BASE}/gitea-runner-${RUNNER_VERSION}-linux-${arch}"
+        info "下载 Gitea Runner ${RUNNER_VERSION}（linux/${arch}）"
+        curl -fsSL --retry 3 -o "$runner" "$runner_url" || die "Runner 下载失败：$runner_url"
+        chmod +x "$runner"
+        local runner_sha
+        runner_sha=$(curl -fsSL --retry 3 "${runner_url}.sha256" 2>/dev/null | awk '{print $1}') || true
+        if [ -n "$runner_sha" ]; then
+            echo "${runner_sha}  ${runner}" | sha256sum -c - >/dev/null || die "Runner 校验失败（sha256 不匹配）"
+            info "Runner 校验通过（sha256 ${runner_sha:0:12}…）"
+        else
+            warn "未取到 Runner 的 sha256，跳过校验"
+        fi
+    fi
+
     pkg="$BUILD_DIR/pkg-${VERSION}-${arch}"
     rm -rf "$pkg"
     mkdir -p "$pkg/app/ui/images"
@@ -195,6 +238,12 @@ pack_one() {
 
     cp "$bin" "$pkg/app/gitea"
     chmod 755 "$pkg/app/gitea"
+    cp "$runner" "$pkg/app/gitea-runner"
+    chmod 755 "$pkg/app/gitea-runner"
+
+    mkdir -p "$pkg/app/theme/github-pink"
+    cp "$THEME_DIR"/*.css "$pkg/app/theme/github-pink/"
+    chmod 644 "$pkg/app/theme/github-pink"/*.css
     chmod 755 "$pkg"/cmd/*
 
     # 版本 / 架构

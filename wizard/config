@@ -1,6 +1,6 @@
 [
   {
-    "stepTitle": "访问与注册",
+    "stepTitle": "访问地址与注册",
     "items": [
       {
         "type": "tips",
@@ -22,6 +22,72 @@
           { "label": "不允许（推荐，由管理员在站内创建账号）", "value": "false" },
           { "label": "允许（任何人都可以注册账号）", "value": "true" }
         ]
+      }
+    ]
+  },
+  {
+    "stepTitle": "邮件通知（SMTP）",
+    "items": [
+      {
+        "type": "tips",
+        "helpText": "保存后会自动重启服务。「不启用」会关闭邮件通知（参数仍保留）；「启用」时请填写完整的 SMTP 参数，密码留空表示沿用原密码。"
+      },
+      {
+        "type": "radio",
+        "field": "wizard_mail_enable",
+        "label": "是否启用 SMTP 发信",
+        "initValue": "false",
+        "options": [
+          { "label": "不启用（关闭邮件通知）", "value": "false" },
+          { "label": "启用（使用下面填写的 SMTP 参数）", "value": "true" }
+        ]
+      },
+      {
+        "type": "text",
+        "field": "wizard_mail_host",
+        "label": "SMTP 服务器地址",
+        "initValue": "",
+        "rules": []
+      },
+      {
+        "type": "text",
+        "field": "wizard_mail_port",
+        "label": "SMTP 端口",
+        "initValue": "587",
+        "rules": [
+          { "pattern": "^(|[0-9]{1,5})$", "message": "端口必须是数字" }
+        ]
+      },
+      {
+        "type": "radio",
+        "field": "wizard_mail_protocol",
+        "label": "加密方式",
+        "initValue": "smtp+starttls",
+        "options": [
+          { "label": "STARTTLS（常用，端口 587）", "value": "smtp+starttls" },
+          { "label": "SMTPS 直连（端口 465）", "value": "smtps" },
+          { "label": "不加密（端口 25，仅内网）", "value": "smtp" }
+        ]
+      },
+      {
+        "type": "text",
+        "field": "wizard_mail_user",
+        "label": "SMTP 用户名",
+        "initValue": "",
+        "rules": []
+      },
+      {
+        "type": "password",
+        "field": "wizard_mail_pass",
+        "label": "SMTP 密码（留空则不改）",
+        "rules": []
+      },
+      {
+        "type": "text",
+        "field": "wizard_mail_from",
+        "label": "发件人地址（留空则用 SMTP 用户名）",
+        "initValue": "",
+        "rules": []
       }
     ]
   }

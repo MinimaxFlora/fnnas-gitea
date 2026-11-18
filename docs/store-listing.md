@@ -28,9 +28,11 @@
 ## 三、功能亮点（列表）
 
 - 完整的 Git 托管：HTTP / SSH 两种克隆方式，内置 SSH 服务默认 2222 端口（被占用自动顺延）
+- **默认粉色调主题**：内置 GitHub Pink（light / dark / soft-dark / auto 四款，默认 dark），可在站内切换
+- **内置 Gitea Runner**：安装即可跑 Actions，标签 `ubuntu-latest` / `ubuntu-26.04` / `ubuntu-24.04` / `ubuntu-22.04`，无需 Docker
+- **安装向导即可配 SMTP**：邮件验证、找回密码、Issue/PR 通知，装好后也能在应用设置里改
 - 协作能力：Issue、Pull Request、代码评审、Wiki、里程碑、标签、看板
 - 包管理：支持 npm / Maven / Docker / PyPI 等十余种制品仓库
-- Gitea Actions：接入 runner 即可在 NAS 上跑 CI
 - 安装即用：安装向导里创建管理员账号，自动生成配置与数据库，不需要再打开网页安装器
 - 数据安全：数据在 `/volX/@appdata/gitea`，卸载时可选择保留；升级不覆盖配置与仓库
 - 双架构原生包：无 Docker 依赖，x86 与 ARM 各一份 fpk

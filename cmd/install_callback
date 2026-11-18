@@ -1,5 +1,5 @@
 #!/bin/bash
-# 安装后：初始化数据目录、生成 app.ini、创建管理员账号
+# 安装后：初始化数据目录、安装主题、生成 app.ini、创建管理员账号
 # 脚本可重复执行：已存在的 app.ini 与数据库不会被覆盖
 
 set -u
@@ -38,10 +38,24 @@ CONF="$APP_ETC/app.ini"
 
 [ -f "$BIN" ] || fail "安装包内缺少 gitea 可执行文件（$BIN）"
 chmod +x "$BIN" 2>/dev/null || fail "无法为 gitea 可执行文件添加执行权限"
+if [ -f "$APP_DEST/gitea-runner" ]; then
+    chmod +x "$APP_DEST/gitea-runner" 2>/dev/null || true
+fi
 
-mkdir -p "$APP_HOME/data" "$APP_HOME/log" "$APP_HOME/tmp" "$APP_HOME/custom/public" \
+mkdir -p "$APP_HOME/data" "$APP_HOME/log" "$APP_HOME/tmp" "$APP_HOME/custom/public/assets/css" \
     || fail "无法创建数据目录 $APP_HOME"
 mkdir -p "$APP_ETC" || fail "无法创建配置目录 $APP_ETC"
+
+# --- 主题：GitHub Pink（lutinglt/gitea-github-theme，随包提供） -----------------
+THEME_SRC="$APP_DEST/theme/github-pink"
+THEME_DST="$APP_HOME/custom/public/assets/css"
+if [ -d "$THEME_SRC" ]; then
+    cp -f "$THEME_SRC"/*.css "$THEME_DST"/ 2>/dev/null || true
+    count=$(ls -1 "$THEME_DST"/theme-github-pink-*.css 2>/dev/null | wc -l)
+    msg "已安装 GitHub Pink 主题（${count} 个样式文件）"
+else
+    msg "警告：包内未找到主题目录（$THEME_SRC），跳过主题安装"
+fi
 
 gen_secret() {
     tr -dc 'A-Za-z0-9' < /dev/urandom | head -c "${1:-48}"
@@ -76,6 +90,55 @@ pick_ssh_port() {
     done
     return 1
 }
+
+# --- SMTP 参数 ----------------------------------------------------------------
+MAIL_ENABLE="${wizard_mail_enable:-false}"
+MAIL_HOST="${wizard_mail_host:-}"
+MAIL_PORT="${wizard_mail_port:-587}"
+MAIL_PROTOCOL="${wizard_mail_protocol:-smtp+starttls}"
+MAIL_USER="${wizard_mail_user:-}"
+MAIL_PASS="${wizard_mail_pass:-}"
+MAIL_FROM="${wizard_mail_from:-}"
+MAIL_BLOCK=""
+MAIL_NOTIFY="false"
+
+if [ "$MAIL_ENABLE" = "true" ]; then
+    [ -n "$MAIL_HOST" ] || fail "启用 SMTP 时必须填写服务器地址"
+    case "$MAIL_PORT" in
+        *[!0-9]*|"") fail "SMTP 端口必须是数字" ;;
+    esac
+    case "$MAIL_PROTOCOL" in
+        smtp|smtp+starttls|smtps) ;;
+        *) fail "SMTP 加密方式只支持 smtp / smtp+starttls / smtps" ;;
+    esac
+    [ -n "$MAIL_USER" ] || MAIL_USER="$MAIL_FROM"
+    [ -n "$MAIL_FROM" ] || MAIL_FROM="$MAIL_USER"
+    [ -n "$MAIL_FROM" ] || fail "启用 SMTP 时必须填写用户名或发件人地址"
+
+    MAIL_BLOCK=$(cat <<EOF
+
+[mailer]
+ENABLED = true
+FROM = ${MAIL_FROM}
+PROTOCOL = ${MAIL_PROTOCOL}
+SMTP_ADDR = ${MAIL_HOST}
+SMTP_PORT = ${MAIL_PORT}
+USER = ${MAIL_USER}
+PASSWD = ${MAIL_PASS}
+EOF
+)
+    MAIL_NOTIFY="true"
+    msg "已启用 SMTP 发信：${MAIL_HOST}:${MAIL_PORT}（${MAIL_PROTOCOL}）"
+fi
+
+# 内置 Runner 开关（默认启用）
+RUNNER_ENABLE="${wizard_runner_enable:-true}"
+if [ "$RUNNER_ENABLE" = "false" ]; then
+    printf 'false\n' > "$APP_HOME/runner-enabled"
+    msg "按用户选择未启用内置 Runner"
+else
+    printf 'true\n' > "$APP_HOME/runner-enabled"
+fi
 
 if [ ! -f "$CONF" ]; then
     NAS_HOST=$(detect_lan_ip)
@@ -135,6 +198,13 @@ INTERNAL_TOKEN = ${INTERNAL_TOKEN}
 [oauth2]
 JWT_SECRET = ${JWT_SECRET}
 
+[ui]
+DEFAULT_THEME = github-pink-dark
+THEMES = gitea,github-pink-light,github-pink-dark,github-pink-soft-dark,github-pink-auto
+
+[actions]
+ENABLED = true
+
 [log]
 MODE = file
 LEVEL = Info
@@ -143,11 +213,12 @@ ROOT_PATH = ${APP_HOME}/log
 [service]
 DISABLE_REGISTRATION = ${DISABLE_REGISTRATION}
 REGISTER_EMAIL_CONFIRM = false
-ENABLE_NOTIFY_MAIL = false
+ENABLE_NOTIFY_MAIL = ${MAIL_NOTIFY}
 ENABLE_CAPTCHA = true
 REQUIRE_SIGNIN_VIEW = false
 DEFAULT_ALLOW_CREATE_ORGANIZATION = true
 NO_REPLY_ADDRESS = noreply.${NAS_HOST}
+${MAIL_BLOCK}
 EOF
 
     if [ ! -s "$CONF" ]; then

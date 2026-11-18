@@ -1,12 +1,13 @@
 #!/bin/bash
-# 升级后：修正可执行权限，补齐数据目录，数据库结构由 Gitea 启动时自动迁移
-# 不覆盖用户已有的 app.ini 与数据
+# 升级后：修正权限、安装/刷新主题、补齐新增配置段、保留数据
+# 不覆盖用户已有的 app.ini 内容与数据
 
 set -u
 
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 APP_HOME="${TRIM_PKGVAR:-}"
+APP_ETC="${TRIM_PKGETC:-}"
 APP_DEST="${TRIM_APPDEST:-}"
 
 msg() {
@@ -15,12 +16,55 @@ msg() {
 
 [ -n "$APP_DEST" ] || exit 1
 [ -n "$APP_HOME" ] || exit 1
+[ -n "$APP_ETC" ]  || exit 1
 
-if [ -f "$APP_DEST/gitea" ]; then
-    chmod +x "$APP_DEST/gitea" 2>/dev/null || true
+CONF="$APP_ETC/app.ini"
+THEMES_VALUE="gitea,github-pink-light,github-pink-dark,github-pink-soft-dark,github-pink-auto"
+
+for b in gitea gitea-runner; do
+    if [ -f "$APP_DEST/$b" ]; then
+        chmod +x "$APP_DEST/$b" 2>/dev/null || true
+    fi
+done
+
+mkdir -p "$APP_HOME/data" "$APP_HOME/log" "$APP_HOME/tmp" \
+         "$APP_HOME/custom/public/assets/css" 2>/dev/null || true
+
+# 主题：覆盖更新（同版本号主题才匹配，跨大版本时也应重装）
+if [ -d "$APP_DEST/theme/github-pink" ]; then
+    cp -f "$APP_DEST/theme/github-pink"/*.css "$APP_HOME/custom/public/assets/css"/ 2>/dev/null || true
+    msg "已刷新 GitHub Pink 主题样式"
 fi
 
-mkdir -p "$APP_HOME/data" "$APP_HOME/log" "$APP_HOME/tmp" "$APP_HOME/custom/public" 2>/dev/null || true
+if [ -f "$CONF" ]; then
+    if ! grep -q '^\[ui\]' "$CONF"; then
+        printf '\n[ui]\nDEFAULT_THEME = github-pink-dark\nTHEMES = %s\n' "$THEMES_VALUE" >> "$CONF"
+        msg "已补充 [ui] 主题配置"
+    else
+        if ! grep -q '^DEFAULT_THEME' "$CONF"; then
+            sed -i '/^\[ui\]/a DEFAULT_THEME = github-pink-dark' "$CONF"
+            msg "已补充 DEFAULT_THEME"
+        fi
+        if grep -q '^THEMES' "$CONF"; then
+            if ! grep -q 'github-pink-dark' "$CONF"; then
+                sed -i "s|^THEMES *=.*|THEMES = ${THEMES_VALUE}|" "$CONF"
+                msg "已更新 THEMES 列表"
+            fi
+        else
+            sed -i "/^\[ui\]/a THEMES = ${THEMES_VALUE}" "$CONF"
+            msg "已补充 THEMES 列表"
+        fi
+    fi
 
-msg "升级完成（$TRIM_OLD_APPVER -> $TRIM_APPVER），数据目录保持不变：$APP_HOME"
+    if ! grep -q '^\[actions\]' "$CONF"; then
+        printf '\n[actions]\nENABLED = true\n' >> "$CONF"
+        msg "已补充 [actions] 配置"
+    fi
+fi
+
+if [ ! -f "$APP_HOME/runner-enabled" ]; then
+    printf 'true\n' > "$APP_HOME/runner-enabled"
+fi
+
+msg "升级完成（${TRIM_OLD_APPVER:-unknown} -> ${TRIM_APPVER:-unknown}），数据目录保持不变：$APP_HOME"
 exit 0

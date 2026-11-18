@@ -1,5 +1,5 @@
 #!/bin/bash
-# 配置变更后：把向导里填写的访问地址 / 注册开关写入 app.ini 并重启服务
+# 配置变更后：把向导里填写的访问地址 / 注册开关 / SMTP 参数写入 app.ini 并重启服务
 
 set -u
 
@@ -7,6 +7,7 @@ export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 APP_ETC="${TRIM_PKGETC:-}"
 CONF="$APP_ETC/app.ini"
+APP_HOME="${TRIM_PKGVAR:-}"
 CMD_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 msg() {
@@ -21,16 +22,28 @@ fail() {
 
 [ -f "$CONF" ] || fail "配置文件不存在：$CONF"
 
+# 读取 app.ini 里某个段的完整文本（用于保留旧 SMTP 参数）
+read_section() {
+    awk -v want="$1" 'BEGIN{s=0} /^\[/{ if ($0=="[" want "]") {s=1} else if (s) {exit} } s{print}' "$CONF"
+}
+
+# 删除 app.ini 里某个段
+drop_section() {
+    awk -v want="$1" 'BEGIN{skip=0} /^\[/{skip=($0=="[" want "]")} !skip{print}' "$CONF" > "$CONF.tmp" \
+        && mv "$CONF.tmp" "$CONF"
+}
+
 CHANGED="no"
 
+# --- 访问地址 ----------------------------------------------------------------
 URL="${wizard_public_url:-}"
 if [ -n "$URL" ] && grep -q '^ROOT_URL' "$CONF"; then
-    # 用 | 作为分隔符，避免地址中的 / 与 sed 冲突
     sed -i "s|^ROOT_URL.*|ROOT_URL = ${URL}|" "$CONF" || fail "写入 ROOT_URL 失败"
     msg "访问地址更新为 $URL"
     CHANGED="yes"
 fi
 
+# --- 开放注册 ----------------------------------------------------------------
 REG="${wizard_open_registration:-}"
 if [ -n "$REG" ]; then
     if [ "$REG" = "true" ]; then REG_VALUE="false"; else REG_VALUE="true"; fi
@@ -39,6 +52,65 @@ if [ -n "$REG" ]; then
         msg "开放注册：$REG（DISABLE_REGISTRATION = ${REG_VALUE}）"
         CHANGED="yes"
     fi
+fi
+
+# --- SMTP --------------------------------------------------------------------
+MAIL_ENABLE="${wizard_mail_enable:-}"
+if [ -n "$MAIL_ENABLE" ]; then
+    OLD_BLOCK="$(read_section mailer)"
+    OLD_PASS="$(printf '%s\n' "$OLD_BLOCK" | awk '/^PASSWD *=/{sub(/^PASSWD *= */,"");print;exit}')"
+    drop_section mailer || fail "清理旧 mailer 配置失败"
+
+    if [ "$MAIL_ENABLE" = "true" ]; then
+        MAIL_HOST="${wizard_mail_host:-}"
+        MAIL_PORT="${wizard_mail_port:-587}"
+        MAIL_PROTOCOL="${wizard_mail_protocol:-smtp+starttls}"
+        MAIL_USER="${wizard_mail_user:-}"
+        MAIL_PASS="${wizard_mail_pass:-}"
+        MAIL_FROM="${wizard_mail_from:-}"
+
+        [ -n "$MAIL_HOST" ] || fail "启用 SMTP 时必须填写服务器地址"
+        case "$MAIL_PORT" in *[!0-9]*|"") fail "SMTP 端口必须是数字" ;; esac
+        case "$MAIL_PROTOCOL" in smtp|smtp+starttls|smtps) ;; *) fail "SMTP 加密方式不合法" ;; esac
+
+        [ -n "$MAIL_USER" ] || MAIL_USER="$MAIL_FROM"
+        [ -n "$MAIL_FROM" ] || MAIL_FROM="$MAIL_USER"
+        [ -n "$MAIL_FROM" ] || fail "启用 SMTP 时必须填写用户名或发件人地址"
+
+        # 密码留空则沿用原配置里的密码
+        [ -n "$MAIL_PASS" ] || MAIL_PASS="$OLD_PASS"
+
+        cat >> "$CONF" <<EOF
+
+[mailer]
+ENABLED = true
+FROM = ${MAIL_FROM}
+PROTOCOL = ${MAIL_PROTOCOL}
+SMTP_ADDR = ${MAIL_HOST}
+SMTP_PORT = ${MAIL_PORT}
+USER = ${MAIL_USER}
+PASSWD = ${MAIL_PASS}
+EOF
+        NOTIFY_VALUE="true"
+        msg "SMTP 已启用：${MAIL_HOST}:${MAIL_PORT}（${MAIL_PROTOCOL}）"
+    else
+        # 关闭时保留原有参数，只把 ENABLED 置为 false，方便以后重新开启
+        if [ -n "$OLD_BLOCK" ]; then
+            NEW_BLOCK="$(printf '%s\n' "$OLD_BLOCK" | sed 's|^ENABLED *=.*|ENABLED = false|')"
+            printf '\n%s\n' "$NEW_BLOCK" >> "$CONF"
+        else
+            printf '\n[mailer]\nENABLED = false\n' >> "$CONF"
+        fi
+        NOTIFY_VALUE="false"
+        msg "SMTP 已关闭（保留原有参数）"
+    fi
+
+    if grep -q '^ENABLE_NOTIFY_MAIL' "$CONF"; then
+        sed -i "s|^ENABLE_NOTIFY_MAIL.*|ENABLE_NOTIFY_MAIL = ${NOTIFY_VALUE}|" "$CONF" || fail "写入 ENABLE_NOTIFY_MAIL 失败"
+    else
+        sed -i "/^\[service\]/a ENABLE_NOTIFY_MAIL = ${NOTIFY_VALUE}" "$CONF" || fail "无法写入 ENABLE_NOTIFY_MAIL"
+    fi
+    CHANGED="yes"
 fi
 
 if [ "$CHANGED" = "yes" ] && [ -r "$CMD_DIR/main" ]; then
