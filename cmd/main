@@ -109,21 +109,37 @@ register_runner() {
         return 0
     fi
 
-    local token
-    token="$("$BIN" -w "$APP_HOME" -c "$CONF" actions generate-runner-token 2>>"$RUNNER_LOG" | tail -n 1)"
-    token="$(printf '%s' "$token" | tr -d '[:space:]')"
+    local token="" attempt
+    for attempt in 1 2 3; do
+        # 注意：gitea 的 CLI 会加载 [server] 段并读取 HOME，fnOS 的包用户没有 /home，
+        # 不给 HOME 会 Fatal（Failed to get home directory）导致令牌生成失败
+        token="$(HOME="$HOME_DIR" GITEA_WORK_DIR="$APP_HOME" GITEA_CUSTOM="$APP_HOME/custom" \
+                 "$BIN" -w "$APP_HOME" -c "$CONF" actions generate-runner-token 2>>"$RUNNER_LOG" | tail -n 1)"
+        token="$(printf '%s' "$token" | tr -d '[:space:]')"
+        [ -n "$token" ] && break
+        runner_log_msg "生成 Runner 注册令牌失败（第 ${attempt} 次），等待后重试"
+        sleep 2
+    done
+
     if [ -z "$token" ]; then
-        runner_log_msg "错误：无法生成 Runner 注册令牌"
+        runner_log_msg "错误：无法生成 Runner 注册令牌（详见上方日志）"
         return 1
     fi
 
     runner_log_msg "注册内置 Runner（${RUNNER_LABELS}）"
+    # gitea-runner 也需要 HOME（否则报 $HOME is not defined），这里统一给 TRIM_PKGHOME
     ( cd "$RUNNER_DIR" && \
-      "$RUNNER_BIN" register --no-interactive \
+      HOME="$HOME_DIR" "$RUNNER_BIN" register --no-interactive \
         --instance "http://127.0.0.1:${HTTP_PORT}/" \
         --token "$token" \
         --name "$(hostname 2>/dev/null || echo fnos)-gitea" \
         --labels "$RUNNER_LABELS" >> "$RUNNER_LOG" 2>&1 )
+
+    if [ ! -f "$RUNNER_DIR/.runner" ]; then
+        runner_log_msg "错误：Runner 注册未生成 .runner 文件（详见上方日志）"
+        return 1
+    fi
+    return 0
 }
 
 start_runner() {
@@ -142,7 +158,20 @@ start_runner() {
     fi
 
     cd "$RUNNER_DIR" || return 0
-    nohup "$RUNNER_BIN" daemon >> "$RUNNER_LOG" 2>&1 &
+    # 写一份最小的 runner 配置：显式给缓存目录，避免依赖 HOME
+    if [ ! -f "$RUNNER_DIR/config.yaml" ]; then
+        mkdir -p "$APP_HOME/runner-cache" "$APP_HOME/runner-work"
+        cat > "$RUNNER_DIR/config.yaml" <<EOF
+log:
+  level: info
+cache:
+  enabled: true
+  dir: $APP_HOME/runner-cache
+host:
+  workdir_parent: $APP_HOME/runner-work
+EOF
+    fi
+    HOME="$HOME_DIR" nohup "$RUNNER_BIN" daemon >> "$RUNNER_LOG" 2>&1 &
     echo $! > "$RUNNER_PID"
 
     local i

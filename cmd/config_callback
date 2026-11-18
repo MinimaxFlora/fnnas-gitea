@@ -63,11 +63,12 @@ if [ -n "$MAIL_ENABLE" ]; then
 
     if [ "$MAIL_ENABLE" = "true" ]; then
         MAIL_HOST="${wizard_mail_host:-}"
-        MAIL_PORT="${wizard_mail_port:-587}"
-        MAIL_PROTOCOL="${wizard_mail_protocol:-smtp+starttls}"
+        MAIL_PORT="${wizard_mail_port:-465}"
+        MAIL_PROTOCOL="${wizard_mail_protocol:-smtps}"
         MAIL_USER="${wizard_mail_user:-}"
         MAIL_PASS="${wizard_mail_pass:-}"
         MAIL_FROM="${wizard_mail_from:-}"
+        MAIL_SKIP_VERIFY="${wizard_mail_skip_verify:-false}"
 
         [ -n "$MAIL_HOST" ] || fail "启用 SMTP 时必须填写服务器地址"
         case "$MAIL_PORT" in *[!0-9]*|"") fail "SMTP 端口必须是数字" ;; esac
@@ -80,6 +81,30 @@ if [ -n "$MAIL_ENABLE" ]; then
         # 密码留空则沿用原配置里的密码
         [ -n "$MAIL_PASS" ] || MAIL_PASS="$OLD_PASS"
 
+        # 写配置前先做真实投递测试，失败就把错误显示在「应用设置」里，旧配置保持不变
+        msg "测试 SMTP 连接：${MAIL_HOST}:${MAIL_PORT}（${MAIL_PROTOCOL}）"
+        APP_DEST="${TRIM_APPDEST:-}"
+        if [ -f "$APP_DEST/smtp_test.py" ] && command -v python3 >/dev/null 2>&1; then
+            extra_arg=""
+            [ "$MAIL_SKIP_VERIFY" = "true" ] && extra_arg="--skip-verify"
+            out="$(SMTP_PASSWD="$MAIL_PASS" timeout 25 python3 "$APP_DEST/smtp_test.py" \
+                --host "$MAIL_HOST" --port "$MAIL_PORT" --mode "$MAIL_PROTOCOL" \
+                --user "$MAIL_USER" --sender "$MAIL_FROM" $extra_arg 2>&1)"
+            rc=$?
+            printf '%s\n' "$out" >> "${TRIM_TEMP_LOGFILE:-/dev/null}"
+            if [ "$rc" -ne 0 ]; then
+                detail="$(printf '%s' "$out" | tail -n 2 | tr '\n' ' ')"
+                printf '\n%s\n' "$OLD_BLOCK" >> "$CONF"
+                fail "SMTP 测试失败（退出码 ${rc}）：${detail} 请检查地址/端口/加密方式/账号密码，或选择「不启用」。"
+            fi
+        else
+            msg "未找到 python3 或 smtp_test.py，只能做 TCP 连通性检查"
+            if ! (exec 3<>"/dev/tcp/${MAIL_HOST}/${MAIL_PORT}") 2>/dev/null; then
+                printf '\n%s\n' "$OLD_BLOCK" >> "$CONF"
+                fail "无法连接 ${MAIL_HOST}:${MAIL_PORT}（TCP），配置未修改。"
+            fi
+        fi
+
         cat >> "$CONF" <<EOF
 
 [mailer]
@@ -90,9 +115,10 @@ SMTP_ADDR = ${MAIL_HOST}
 SMTP_PORT = ${MAIL_PORT}
 USER = ${MAIL_USER}
 PASSWD = ${MAIL_PASS}
+FORCE_TRUST_SERVER_CERT = ${MAIL_SKIP_VERIFY}
 EOF
         NOTIFY_VALUE="true"
-        msg "SMTP 已启用：${MAIL_HOST}:${MAIL_PORT}（${MAIL_PROTOCOL}）"
+        msg "SMTP 已启用并通过测试：${MAIL_HOST}:${MAIL_PORT}（${MAIL_PROTOCOL}）"
     else
         # 关闭时保留原有参数，只把 ENABLED 置为 false，方便以后重新开启
         if [ -n "$OLD_BLOCK" ]; then

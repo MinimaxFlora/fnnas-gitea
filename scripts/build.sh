@@ -241,6 +241,9 @@ pack_one() {
     cp "$runner" "$pkg/app/gitea-runner"
     chmod 755 "$pkg/app/gitea-runner"
 
+    cp "$ROOT_DIR/app/smtp_test.py" "$pkg/app/smtp_test.py"
+    chmod 755 "$pkg/app/smtp_test.py"
+
     mkdir -p "$pkg/app/theme/github-pink"
     cp "$THEME_DIR"/*.css "$pkg/app/theme/github-pink/"
     chmod 644 "$pkg/app/theme/github-pink"/*.css
