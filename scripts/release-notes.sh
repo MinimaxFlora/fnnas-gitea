@@ -54,6 +54,7 @@ fi
 if [ -f "$arm" ]; then
     echo "| ARM / arm64 | \`gitea-native_${VERSION}_arm64.fpk\` | $(size_of "$arm") | \`$(sha_of "$arm")\` |"
 fi
+echo
 echo "> 校验：\`sha256sum -c SHA256SUMS\`"
 
 cat <<'EOF'
@@ -69,7 +70,7 @@ cat <<'EOF'
 ## 首次使用要点
 
 - 无需再打开 Gitea 网页安装器：`app.ini` 与 SQLite 数据库在安装时已生成，管理员账号已创建
-- 内置 SSH 服务已启用，克隆地址形如 `ssh://gitea@<NAS-IP>:2222/<用户>/<仓库>.git`
+- 内置 SSH 服务已启用，克隆地址形如 `ssh://gitea-native@<NAS-IP>:2222/<用户>/<仓库>.git`
 - 若开启了飞牛防火墙，请放行 `3033/tcp` 与 `2222/tcp`
 - 通过域名/反向代理访问时，请在 **应用设置 → 访问地址** 里把 `ROOT_URL` 改成对外地址，否则仓库地址与邮件链接会指向内网 IP
 
