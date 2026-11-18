@@ -1,0 +1,18 @@
+#!/bin/bash
+# 升级前：停止正在运行的 Gitea，让文件替换与数据迁移有稳定的状态
+
+set -u
+
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+msg() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [upgrade_init] $1" >> "${TRIM_TEMP_LOGFILE:-/dev/null}"
+}
+
+CMD_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -r "$CMD_DIR/main" ]; then
+    bash "$CMD_DIR/main" stop >/dev/null 2>&1 || true
+    msg "已停止旧版本服务（${TRIM_OLD_APPVER:-unknown} -> ${TRIM_APPVER:-unknown}）"
+fi
+
+exit 0

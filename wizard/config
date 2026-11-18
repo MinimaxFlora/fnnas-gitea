@@ -1,0 +1,28 @@
+[
+  {
+    "stepTitle": "访问与注册",
+    "items": [
+      {
+        "type": "tips",
+        "helpText": "如果通过域名或反向代理访问 Gitea，请把「访问地址」填写成对外地址（例如 https://git.example.com/），否则仓库地址、邮件链接会指向内网 IP。留空表示保持当前配置不变。"
+      },
+      {
+        "type": "text",
+        "field": "wizard_public_url",
+        "label": "访问地址（可选）",
+        "initValue": "",
+        "rules": []
+      },
+      {
+        "type": "radio",
+        "field": "wizard_open_registration",
+        "label": "允许访客自助注册账号",
+        "initValue": "false",
+        "options": [
+          { "label": "不允许（推荐，由管理员在站内创建账号）", "value": "false" },
+          { "label": "允许（任何人都可以注册账号）", "value": "true" }
+        ]
+      }
+    ]
+  }
+]

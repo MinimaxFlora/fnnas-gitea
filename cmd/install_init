@@ -1,0 +1,48 @@
+#!/bin/bash
+# 安装前检查：端口占用、系统 git 可用性
+# 失败时把用户可读的信息写入 TRIM_TEMP_LOGFILE，再以非零状态退出
+
+set -u
+
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+for d in /usr/lib/git-core /usr/libexec/git-core \
+         /var/packages/git/target/libexec/git-core \
+         /var/packages/git/target/share/git-core \
+         /var/packages/git/target/bin; do
+    [ -d "$d" ] && PATH="$PATH:$d"
+done
+
+HTTP_PORT="${TRIM_SERVICE_PORT:-3033}"
+
+msg() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [install_init] $1" >> "${TRIM_TEMP_LOGFILE:-/dev/null}"
+}
+
+fail() {
+    msg "失败：$1"
+    echo "ERROR: $1" >&2
+    exit 1
+}
+
+port_busy() {
+    local p="$1"
+    if command -v ss >/dev/null 2>&1; then
+        ss -ltn 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${p}\$"
+    elif command -v netstat >/dev/null 2>&1; then
+        netstat -ltn 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${p}\$"
+    else
+        return 1
+    fi
+}
+
+if port_busy "$HTTP_PORT"; then
+    fail "端口 ${HTTP_PORT} 已被占用。请先在应用中心停止占用该端口的应用（例如官方商店里的 Gitea），或在应用设置里修改端口后重新安装。"
+fi
+
+if command -v git >/dev/null 2>&1; then
+    msg "系统 git：$(git --version 2>/dev/null)"
+else
+    msg "警告：未检测到系统 git。Gitea 需要 git >= 2.0 才能提供仓库操作，请通过 SSH 执行 sudo apt install -y git 后重试。"
+fi
+
+exit 0

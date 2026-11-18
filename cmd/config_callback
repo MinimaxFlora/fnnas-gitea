@@ -1,0 +1,49 @@
+#!/bin/bash
+# 配置变更后：把向导里填写的访问地址 / 注册开关写入 app.ini 并重启服务
+
+set -u
+
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+APP_ETC="${TRIM_PKGETC:-}"
+CONF="$APP_ETC/app.ini"
+CMD_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+msg() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [config_callback] $1" >> "${TRIM_TEMP_LOGFILE:-/dev/null}"
+}
+
+fail() {
+    msg "失败：$1"
+    echo "ERROR: $1" >&2
+    exit 1
+}
+
+[ -f "$CONF" ] || fail "配置文件不存在：$CONF"
+
+CHANGED="no"
+
+URL="${wizard_public_url:-}"
+if [ -n "$URL" ] && grep -q '^ROOT_URL' "$CONF"; then
+    # 用 | 作为分隔符，避免地址中的 / 与 sed 冲突
+    sed -i "s|^ROOT_URL.*|ROOT_URL = ${URL}|" "$CONF" || fail "写入 ROOT_URL 失败"
+    msg "访问地址更新为 $URL"
+    CHANGED="yes"
+fi
+
+REG="${wizard_open_registration:-}"
+if [ -n "$REG" ]; then
+    if [ "$REG" = "true" ]; then REG_VALUE="false"; else REG_VALUE="true"; fi
+    if grep -q '^DISABLE_REGISTRATION' "$CONF"; then
+        sed -i "s|^DISABLE_REGISTRATION.*|DISABLE_REGISTRATION = ${REG_VALUE}|" "$CONF" || fail "写入注册开关失败"
+        msg "开放注册：$REG（DISABLE_REGISTRATION = ${REG_VALUE}）"
+        CHANGED="yes"
+    fi
+fi
+
+if [ "$CHANGED" = "yes" ] && [ -r "$CMD_DIR/main" ]; then
+    bash "$CMD_DIR/main" stop >/dev/null 2>&1 || true
+    bash "$CMD_DIR/main" start >/dev/null 2>&1 || fail "配置已写入，但服务重启失败，请到应用中心手动启动"
+fi
+
+exit 0

@@ -1,0 +1,28 @@
+#!/bin/bash
+# 配置变更前：校验用户填写的内容
+
+set -u
+
+msg() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [config_init] $1" >> "${TRIM_TEMP_LOGFILE:-/dev/null}"
+}
+
+fail() {
+    msg "失败：$1"
+    echo "ERROR: $1" >&2
+    exit 1
+}
+
+URL="${wizard_public_url:-}"
+if [ -n "$URL" ]; then
+    case "$URL" in
+        http://*|https://*) ;;
+        *) fail "访问地址必须以 http:// 或 https:// 开头，例如 http://192.168.1.10:3033/" ;;
+    esac
+    case "$URL" in
+        */) ;;
+        *) fail "访问地址必须以 / 结尾，例如 http://192.168.1.10:3033/" ;;
+    esac
+fi
+
+exit 0

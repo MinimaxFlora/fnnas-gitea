@@ -1,0 +1,18 @@
+appname               = gitea-native
+version               = 28.4.0
+display_name          = Gitea
+desc                  = 轻量级、开箱即用的自托管 Git 服务：仓库、Issue、Pull Request、Wiki、包管理与 Gitea Actions 一应俱全。<br>由上游 Gitea 源码直接编译，内置 SQLite 数据库与内置 SSH 服务（默认端口 2222），无需 Docker，数据保存在安装时选择的存储空间（<b>/volX/@appdata/gitea-native</b>）。<br>本包由社区维护，并非飞牛官方应用；遇到问题请到 <a href="https://github.com/MinimaxFlora/fnnas-gitea/issues" target="_blank" rel="noopener noreferrer">项目仓库</a> 反馈。
+platform              = x86
+source                = thirdparty
+maintainer            = go-gitea
+maintainer_url        = https://gitea.com
+distributor           = MinimaxFlora
+distributor_url       = https://github.com/MinimaxFlora/fnnas-gitea
+os_min_version        = 1.1.3100
+desktop_uidir         = ui
+desktop_applaunchname = gitea-native.main
+service_port          = 3033
+checkport             = true
+ctl_stop              = true
+disable_authorization_path = true
+changelog             = 首次发布：从源码编译上游 Gitea v28.4.0，支持 x86 / ARM 双架构。

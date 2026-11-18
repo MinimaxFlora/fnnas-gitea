@@ -1,0 +1,194 @@
+#!/bin/bash
+# 安装后：初始化数据目录、生成 app.ini、创建管理员账号
+# 脚本可重复执行：已存在的 app.ini 与数据库不会被覆盖
+
+set -u
+
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+for d in /usr/lib/git-core /usr/libexec/git-core \
+         /var/packages/git/target/libexec/git-core \
+         /var/packages/git/target/share/git-core \
+         /var/packages/git/target/bin; do
+    [ -d "$d" ] && PATH="$PATH:$d"
+done
+
+APP_HOME="${TRIM_PKGVAR:-}"
+APP_ETC="${TRIM_PKGETC:-}"
+APP_DEST="${TRIM_APPDEST:-}"
+HTTP_PORT="${TRIM_SERVICE_PORT:-3033}"
+APP_USER="${TRIM_USERNAME:-gitea-native}"
+LOG="${TRIM_TEMP_LOGFILE:-/dev/null}"
+
+msg() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [install_callback] $1" >> "$LOG"
+}
+
+fail() {
+    msg "失败：$1"
+    echo "ERROR: $1" >&2
+    exit 1
+}
+
+[ -n "$APP_HOME" ] || fail "TRIM_PKGVAR 未提供，无法确定数据目录"
+[ -n "$APP_ETC" ]  || fail "TRIM_PKGETC 未提供，无法确定配置目录"
+[ -n "$APP_DEST" ] || fail "TRIM_APPDEST 未提供，无法确定安装目录"
+
+BIN="$APP_DEST/gitea"
+CONF="$APP_ETC/app.ini"
+
+[ -f "$BIN" ] || fail "安装包内缺少 gitea 可执行文件（$BIN）"
+chmod +x "$BIN" 2>/dev/null || fail "无法为 gitea 可执行文件添加执行权限"
+
+mkdir -p "$APP_HOME/data" "$APP_HOME/log" "$APP_HOME/tmp" "$APP_HOME/custom/public" \
+    || fail "无法创建数据目录 $APP_HOME"
+mkdir -p "$APP_ETC" || fail "无法创建配置目录 $APP_ETC"
+
+gen_secret() {
+    tr -dc 'A-Za-z0-9' < /dev/urandom | head -c "${1:-48}"
+}
+
+port_busy() {
+    local p="$1"
+    if command -v ss >/dev/null 2>&1; then
+        ss -ltn 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${p}\$"
+    elif command -v netstat >/dev/null 2>&1; then
+        netstat -ltn 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${p}\$"
+    else
+        return 1
+    fi
+}
+
+detect_lan_ip() {
+    local ip
+    ip=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i=="src") {print $(i+1); exit}}')
+    [ -n "$ip" ] || ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    echo "${ip:-127.0.0.1}"
+}
+
+# 内置 SSH 服务端口：优先 2222，被占用则顺延，避免与 NAS 自身 SSH 冲突
+pick_ssh_port() {
+    local p
+    for p in 2222 2223 2224 2225 2226 2227 2228 2229; do
+        if ! port_busy "$p"; then
+            echo "$p"
+            return 0
+        fi
+    done
+    return 1
+}
+
+if [ ! -f "$CONF" ]; then
+    NAS_HOST=$(detect_lan_ip)
+    SSH_PORT=$(pick_ssh_port) || fail "2222-2229 端口均被占用，无法为内置 SSH 服务分配端口"
+    SECRET_KEY=$(gen_secret 48)
+    INTERNAL_TOKEN=$(gen_secret 96)
+    JWT_SECRET=$(gen_secret 48)
+
+    if [ "${wizard_open_registration:-false}" = "true" ]; then
+        DISABLE_REGISTRATION="false"
+    else
+        DISABLE_REGISTRATION="true"
+    fi
+
+    msg "生成配置文件 $CONF（访问地址 http://${NAS_HOST}:${HTTP_PORT}/，SSH 端口 ${SSH_PORT}）"
+
+    cat > "$CONF" <<EOF
+APP_NAME = Gitea: Git with a cup of tea
+RUN_USER = ${APP_USER}
+RUN_MODE = prod
+WORK_PATH = ${APP_HOME}
+
+[server]
+PROTOCOL = http
+DOMAIN = ${NAS_HOST}
+HTTP_ADDR = 0.0.0.0
+HTTP_PORT = ${HTTP_PORT}
+ROOT_URL = http://${NAS_HOST}:${HTTP_PORT}/
+DISABLE_SSH = false
+START_SSH_SERVER = true
+SSH_DOMAIN = ${NAS_HOST}
+SSH_PORT = ${SSH_PORT}
+SSH_LISTEN_HOST = 0.0.0.0
+SSH_LISTEN_PORT = ${SSH_PORT}
+SSH_SERVER_CIPHERS = aes128-ctr,aes192-ctr,aes256-ctr,aes128-gcm@openssh.com,aes256-gcm@openssh.com,chacha20-poly1305@openssh.com
+LFS_START_SERVER = true
+OFFLINE_MODE = true
+APP_DATA_PATH = ${APP_HOME}/data
+
+[repository]
+ROOT = ${APP_HOME}/data/gitea-repositories
+DEFAULT_BRANCH = main
+
+[database]
+DB_TYPE = sqlite3
+PATH = ${APP_HOME}/data/gitea.db
+SQLITE_TIMEOUT = 500
+
+[lfs]
+PATH = ${APP_HOME}/data/lfs
+
+[security]
+INSTALL_LOCK = true
+SECRET_KEY = ${SECRET_KEY}
+INTERNAL_TOKEN = ${INTERNAL_TOKEN}
+
+[oauth2]
+JWT_SECRET = ${JWT_SECRET}
+
+[log]
+MODE = file
+LEVEL = Info
+ROOT_PATH = ${APP_HOME}/log
+
+[service]
+DISABLE_REGISTRATION = ${DISABLE_REGISTRATION}
+REGISTER_EMAIL_CONFIRM = false
+ENABLE_NOTIFY_MAIL = false
+ENABLE_CAPTCHA = true
+REQUIRE_SIGNIN_VIEW = false
+DEFAULT_ALLOW_CREATE_ORGANIZATION = true
+NO_REPLY_ADDRESS = noreply.${NAS_HOST}
+EOF
+
+    if [ ! -s "$CONF" ]; then
+        fail "写入配置文件失败：$CONF"
+    fi
+    chmod 600 "$CONF" 2>/dev/null || true
+else
+    msg "配置文件已存在，保留原有配置：$CONF"
+fi
+
+# 仅在全新数据库时创建管理员
+if [ ! -s "$APP_HOME/data/gitea.db" ]; then
+    ADMIN_USER="${wizard_admin_user:-admin}"
+    ADMIN_PASS="${wizard_admin_password:-}"
+    ADMIN_MAIL="${wizard_admin_email:-}"
+
+    if [ -z "$ADMIN_PASS" ]; then
+        fail "未提供管理员密码，无法创建管理员账号。请重新安装并在向导中填写密码。"
+    fi
+    if [ -z "$ADMIN_MAIL" ]; then
+        ADMIN_MAIL="${ADMIN_USER}@${HOSTNAME:-fnos.local}"
+    fi
+
+    msg "创建管理员账号 ${ADMIN_USER}（${ADMIN_MAIL}）"
+    # 首次启动前先建表：admin user create 不会自动跑迁移
+    if ! GITEA_WORK_DIR="$APP_HOME" GITEA_CUSTOM="$APP_HOME/custom" HOME="${TRIM_PKGHOME:-$APP_HOME}" \
+        "$BIN" -c "$CONF" migrate >> "$LOG" 2>&1; then
+        fail "数据库初始化失败（gitea migrate），请查看安装日志"
+    fi
+    if ! GITEA_WORK_DIR="$APP_HOME" GITEA_CUSTOM="$APP_HOME/custom" HOME="${TRIM_PKGHOME:-$APP_HOME}" \
+        "$BIN" -c "$CONF" admin user create \
+            --username "$ADMIN_USER" \
+            --password "$ADMIN_PASS" \
+            --email "$ADMIN_MAIL" \
+            --admin \
+            --must-change-password=false >> "$LOG" 2>&1; then
+        fail "创建管理员账号失败，请查看安装日志后重试（常见原因是邮箱格式不合法或密码过短）"
+    fi
+else
+    msg "数据库已存在，跳过管理员创建"
+fi
+
+msg "安装完成：http://$(detect_lan_ip):${HTTP_PORT}/"
+exit 0

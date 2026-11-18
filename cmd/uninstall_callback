@@ -1,0 +1,35 @@
+#!/bin/bash
+# 卸载后：仅在用户在卸载向导中选择「清除数据」时删除应用数据
+# 只会删除本应用自己的数据目录，绝不触碰其他应用或用户共享目录
+
+set -u
+
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+APP_HOME="${TRIM_PKGVAR:-}"
+APP_ETC="${TRIM_PKGETC:-}"
+
+msg() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [uninstall_callback] $1" >> "${TRIM_TEMP_LOGFILE:-/dev/null}"
+}
+
+if [ "${wizard_delete_data:-false}" != "true" ]; then
+    msg "按用户选择保留数据目录：$APP_HOME"
+    exit 0
+fi
+
+safe_rm() {
+    local target="$1"
+    [ -n "$target" ] || return 0
+    case "$target" in
+        /vol*/@appdata/gitea-native|/vol*/@appdata/gitea-native/*) ;;
+        /usr/local/apps/@appdata/gitea-native|/usr/local/apps/@appdata/gitea-native/*) ;;
+        *) msg "跳过非预期的路径：$target"; return 0 ;;
+    esac
+    rm -rf "$target"
+}
+
+safe_rm "$APP_HOME"
+safe_rm "$APP_ETC"
+msg "已按用户选择清除应用数据"
+exit 0

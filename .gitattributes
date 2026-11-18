@@ -1,0 +1,7 @@
+* text=auto eol=lf
+*.png binary
+*.PNG binary
+manifest text eol=lf
+cmd/* text eol=lf
+wizard/* text eol=lf
+config/* text eol=lf

@@ -1,0 +1,50 @@
+[
+  {
+    "stepTitle": "Gitea 初始化",
+    "items": [
+      {
+        "type": "tips",
+        "helpText": "安装向导会直接创建管理员账号，安装完成后即可用该账号登录，无需再打开网页安装器。<br>Web 访问端口固定为 <b>3033</b>，内置 SSH 服务端口会自动挑选空闲端口（优先 2222）。<br>数据保存在安装时选择的存储空间中：/volX/@appdata/gitea-native。"
+      },
+      {
+        "type": "text",
+        "field": "wizard_admin_user",
+        "label": "管理员用户名",
+        "initValue": "admin",
+        "rules": [
+          { "required": true, "message": "请填写管理员用户名" },
+          { "pattern": "^[a-zA-Z0-9._-]{3,30}$", "message": "用户名需为 3-30 个字符，仅支持字母、数字、下划线、点和连字符" }
+        ]
+      },
+      {
+        "type": "password",
+        "field": "wizard_admin_password",
+        "label": "管理员密码",
+        "rules": [
+          { "required": true, "message": "请填写管理员密码" },
+          { "pattern": "^.{8,}$", "message": "密码至少 8 个字符" }
+        ]
+      },
+      {
+        "type": "text",
+        "field": "wizard_admin_email",
+        "label": "管理员邮箱",
+        "initValue": "admin@fnos.local",
+        "rules": [
+          { "required": true, "message": "请填写管理员邮箱" },
+          { "pattern": "^[^@[:space:]]+@[^@[:space:]]+", "message": "邮箱格式不正确" }
+        ]
+      },
+      {
+        "type": "radio",
+        "field": "wizard_open_registration",
+        "label": "是否允许访客自助注册账号",
+        "initValue": "false",
+        "options": [
+          { "label": "不允许（推荐，由管理员在站内创建账号）", "value": "false" },
+          { "label": "允许（任何人都可以注册账号）", "value": "true" }
+        ]
+      }
+    ]
+  }
+]

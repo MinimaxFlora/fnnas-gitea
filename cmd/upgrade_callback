@@ -1,0 +1,26 @@
+#!/bin/bash
+# 升级后：修正可执行权限，补齐数据目录，数据库结构由 Gitea 启动时自动迁移
+# 不覆盖用户已有的 app.ini 与数据
+
+set -u
+
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+APP_HOME="${TRIM_PKGVAR:-}"
+APP_DEST="${TRIM_APPDEST:-}"
+
+msg() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') [upgrade_callback] $1" >> "${TRIM_TEMP_LOGFILE:-/dev/null}"
+}
+
+[ -n "$APP_DEST" ] || exit 1
+[ -n "$APP_HOME" ] || exit 1
+
+if [ -f "$APP_DEST/gitea" ]; then
+    chmod +x "$APP_DEST/gitea" 2>/dev/null || true
+fi
+
+mkdir -p "$APP_HOME/data" "$APP_HOME/log" "$APP_HOME/tmp" "$APP_HOME/custom/public" 2>/dev/null || true
+
+msg "升级完成（$TRIM_OLD_APPVER -> $TRIM_APPVER），数据目录保持不变：$APP_HOME"
+exit 0

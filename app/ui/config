@@ -1,0 +1,14 @@
+{
+    ".url": {
+        "gitea-native.main": {
+            "title": "Gitea",
+            "desc": "Gitea 自托管 Git 服务",
+            "icon": "images/icon_{0}.png",
+            "type": "url",
+            "protocol": "http",
+            "port": "3033",
+            "url": "/",
+            "allUsers": true
+        }
+    }
+}

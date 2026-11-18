@@ -1,0 +1,14 @@
+#!/bin/bash
+# 卸载前：停止服务
+
+set -u
+
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+CMD_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -r "$CMD_DIR/main" ]; then
+    bash "$CMD_DIR/main" stop >/dev/null 2>&1 || true
+fi
+
+echo "$(date '+%Y-%m-%d %H:%M:%S') [uninstall_init] 已停止 Gitea 服务" >> "${TRIM_TEMP_LOGFILE:-/dev/null}"
+exit 0
