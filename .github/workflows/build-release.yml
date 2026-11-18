@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "上游 Gitea tag，例如 v28.4.0；留空则自动取上游最新 release"
+        description: "Gitea tag，例如 v28.4.0；留空则自动取「上游最新」与「主题仓库最新」中较旧的那个"
         required: false
         default: ""
       force:
@@ -40,17 +40,19 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          tag="${INPUT_TAG}"
-          if [ -z "$tag" ]; then
-            tag=$(curl -fsSL --retry 3 "https://api.github.com/repos/go-gitea/gitea/releases/latest" \
-                  | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n1)
+          # 版本解析收敛到 scripts/build.sh --resolve，本地打包与 CI 用同一套规则：
+          # 主题必须与 Gitea 源码版本匹配，所以取「上游最新」与「主题仓库最新」中较旧的那个。
+          if [ -n "${INPUT_TAG}" ]; then
+            tag=$(bash scripts/build.sh --resolve --tag "${INPUT_TAG}" 2>/dev/null | tail -n1)
+          else
+            tag=$(bash scripts/build.sh --resolve 2>/dev/null | tail -n1)
           fi
           case "$tag" in
             v*) ;;
             *) echo "无法解析 tag: '$tag'" >&2; exit 1 ;;
           esac
 
-          echo "上游 tag: $tag"
+          echo "本次编译 tag: $tag"
           version="${tag#v}"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"

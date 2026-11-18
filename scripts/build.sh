@@ -30,6 +30,7 @@ ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/.build}"
 OUT_DIR="${OUT_DIR:-$ROOT_DIR/dist}"
 TAG=""
+RESOLVE_ONLY=0
 ARCHS="amd64 arm64"
 SKIP_FRONTEND=0
 
@@ -49,6 +50,7 @@ while [ $# -gt 0 ]; do
         --arch) ARCHS="${2:?--arch 需要 amd64 或 arm64}"; shift 2 ;;
         --arch=*) ARCHS="${1#*=}"; shift ;;
         --skip-frontend) SKIP_FRONTEND=1; shift ;;
+        --resolve) RESOLVE_ONLY=1; shift ;;
         --out) OUT_DIR="${2:?--out 需要目录}"; shift 2 ;;
         -h|--help) usage ;;
         *) die "未知参数: $1" ;;
@@ -95,15 +97,69 @@ resolve_tag() {
     printf '%s' "$t"
 }
 
-if [ -z "$TAG" ]; then
-    TAG=$(resolve_tag)
+# 主题仓库的最新 tag（主题必须与 Gitea 前端版本匹配，跨版本会错版）
+resolve_theme_tag() {
+    local t=""
+    t=$(curl -fsSL --retry 3 "https://api.github.com/repos/${THEME_REPO}/releases/latest" \
+        | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n1) || true
+    if [ -z "$t" ]; then
+        t=$(git ls-remote --tags --refs "https://github.com/${THEME_REPO}.git" \
+            | awk -F/ '{print $NF}' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
+    fi
+    printf '%s' "$t"
+}
+
+# 取两个 tag 中较小的那个（版本号越小 = 越旧的 Gitea）
+tag_min() {
+    printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1
+}
+
+GITEA_LATEST=$(resolve_tag)
+THEME_LATEST=$(resolve_theme_tag)
+info "上游最新 tag：${GITEA_LATEST:-未知}；主题仓库最新 tag：${THEME_LATEST:-未知}"
+
+if [ -n "$TAG" ]; then
+    # 手动指定：必须保证主题仓库有同版本，否则前端与主题会错版
+    case "$TAG" in v*) ;; *) TAG="v${TAG}" ;; esac
+    THEME_TAG="$TAG"
+    if [ -n "$THEME_LATEST" ] && [ "$TAG" != "$THEME_LATEST" ]; then
+        warn "手动指定 ${TAG}，但主题仓库最新是 ${THEME_LATEST}；如果该版本没有主题包，打包会失败"
+    fi
+else
+    [ -n "$GITEA_LATEST" ] || die "无法确定上游最新 tag"
+    if [ -z "$THEME_LATEST" ]; then
+        warn "无法确定主题仓库最新 tag，回退到上游最新 ${GITEA_LATEST}（主题可能错版）"
+        TAG="$GITEA_LATEST"
+        THEME_TAG="$TAG"
+    else
+        # 关键规则：Gitea 版本不能超过主题仓库支持的版本，两者取交集（较旧者）
+        TAG=$(tag_min "$GITEA_LATEST" "$THEME_LATEST")
+        if [ "$TAG" != "$GITEA_LATEST" ]; then
+            warn "上游已发布 ${GITEA_LATEST}，但主题仓库最新只到 ${THEME_LATEST}；为保证主题与前端匹配，本次编译 ${TAG}"
+        elif [ "$TAG" != "$THEME_LATEST" ]; then
+            warn "主题仓库 ${THEME_LATEST} 比上游 ${GITEA_LATEST} 还新，按上游版本编译"
+        fi
+        THEME_TAG="$THEME_LATEST"
+    fi
 fi
-case "$TAG" in
-    v*) ;;
-    *) TAG="v${TAG}" ;;
-esac
 VERSION="${TAG#v}"
-info "上游 tag：${TAG}（应用版本 ${VERSION}）"
+
+if [ "$RESOLVE_ONLY" = "1" ]; then
+    printf '%s\n' "$TAG"
+    exit 0
+fi
+
+info "编译版本：${TAG}（应用版本 ${VERSION}，主题 ${THEME_TAG}）"
+
+# ---------------------------------------------------------------------------
+# 主题包先验证存在（版本不匹配时提前失败，不要编译到一半才报错）
+# ---------------------------------------------------------------------------
+THEME_DIR="$BUILD_DIR/theme-${THEME_TAG}"
+THEME_URL="https://github.com/${THEME_REPO}/releases/download/${THEME_TAG}/${THEME_ASSET}"
+if [ ! -d "$THEME_DIR" ] || ! ls "$THEME_DIR"/*.css >/dev/null 2>&1; then
+    info "校验主题包：${THEME_URL}"
+    curl -fsIL --retry 3 "$THEME_URL" >/dev/null 2>&1 || die "主题仓库没有 ${THEME_TAG} 版本的主题包（最新为 ${THEME_LATEST:-未知}）：${THEME_URL}"
+fi
 
 mkdir -p "$BUILD_DIR" "$OUT_DIR"
 
@@ -155,15 +211,14 @@ fi
 # ---------------------------------------------------------------------------
 # 主题（GitHub Pink，架构无关，随包分发）
 # ---------------------------------------------------------------------------
-THEME_DIR="$BUILD_DIR/theme-${VERSION}"
-THEME_URL="https://github.com/${THEME_REPO}/releases/download/v${VERSION}/${THEME_ASSET}"
+# 主题固定用主题仓库该版本的发布包（THEME_TAG 已在前面解析并校验存在）
 if [ -d "$THEME_DIR" ] && ls "$THEME_DIR"/*.css >/dev/null 2>&1; then
     info "主题已下载，跳过：$THEME_DIR"
 else
-    info "下载主题 ${THEME_ASSET}（v${VERSION}）"
-    THEME_TGZ="$BUILD_DIR/theme-${VERSION}.tar.gz"
+    info "下载主题 ${THEME_ASSET}（${THEME_TAG}）"
+    THEME_TGZ="$BUILD_DIR/theme-${THEME_TAG}.tar.gz"
     if ! curl -fsSL --retry 3 -o "$THEME_TGZ" "$THEME_URL"; then
-        die "主题下载失败：$THEME_URL（该 Gitea 版本可能尚未发布对应主题）"
+        die "主题下载失败：$THEME_URL —— 主题仓库最新为 ${THEME_LATEST:-未知}，没有 ${THEME_TAG} 的主题包。改用 --tag ${THEME_LATEST} 或等主题更新后再构建。"
     fi
     rm -rf "$THEME_DIR"
     mkdir -p "$THEME_DIR"
