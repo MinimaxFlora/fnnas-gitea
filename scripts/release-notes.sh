@@ -73,10 +73,9 @@ cat <<'EOF'
 - 无需再打开 Gitea 网页安装器：`app.ini` 与 SQLite 数据库在安装时已生成，管理员账号已创建
 - 默认主题是 **GitHub Pink**（`github-pink-dark`），另有 light / soft-dark / auto，可在站内「设置 → 外观」切换
 - 内置 **Gitea Runner 6.0.0** 已自动注册，标签 `ubuntu-latest` / `ubuntu-26.04` / `ubuntu-24.04` / `ubuntu-22.04`，工作流直接能跑（host 模式，不依赖 Docker）
-- **SMTP 邮件**在安装向导里可填，也可稍后在「应用设置」里补
 - 内置 SSH 服务已启用，克隆地址形如 `ssh://gitea@<NAS-IP>:2222/<用户>/<仓库>.git`
 - 若开启了飞牛防火墙，请放行 `3033/tcp` 与 `2222/tcp`
-- 通过域名/反向代理访问时，请在 **应用设置 → 访问地址** 里把 `ROOT_URL` 改成对外地址，否则仓库地址与邮件链接会指向内网 IP
+- 通过域名/反向代理访问时，请在 **应用设置 → 访问地址** 里把 `ROOT_URL` 改成对外地址，否则仓库地址会指向内网 IP
 
 ## 环境要求
 

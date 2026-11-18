@@ -16,7 +16,6 @@
 | 版本策略 | GitHub tag / Release 名称与上游 tag 完全一致（例如 `v28.4.0`） |
 | 默认主题 | GitHub Pink（`github-pink-dark`），同时提供 light / soft-dark / auto 变体，用户可在「设置 → 外观」里切换 |
 | 内置 Runner | Gitea Runner 6.0.0，标签 `ubuntu-latest` / `ubuntu-26.04` / `ubuntu-24.04` / `ubuntu-22.04`（host 模式，不需要 Docker） |
-| 邮件 | 安装向导里可填 SMTP，装好后也能在「应用设置」里改 |
 
 ## 安装
 
@@ -31,7 +30,7 @@
    - 是否允许访客自助注册（默认不允许）
 4. 安装完成后在「我的应用」点 **打开**，或浏览器访问 `http://<NAS-IP>:3033`
 
-向导里还有两步可选：**是否启用内置 Runner**（默认启用，Actions 工作流可直接跑）、**SMTP 邮件**（可跳过，之后在应用设置里再配）。
+向导里还可以选择**是否启用内置 Runner**（默认启用，Actions 工作流可直接跑）。
 
 安装阶段就会生成 `app.ini`、SQLite 数据库并创建管理员账号，**不需要**再走 Gitea 的网页安装器。
 
@@ -87,23 +86,6 @@
 - 局限：host 模式没有容器隔离，需要 `sudo` 的步骤会失败，`services:` / `container:` 也不可用
 - 不想用时：安装向导里选「不启用」，或写 `$TRIM_PKGVAR/runner-enabled` 为 `false` 后重启
 - 只看 Runner 日志：`cmd/main log 200`（Gitea 日志 + Runner 日志一起输出）
-
-## 邮件通知（SMTP）
-
-安装向导第三个步骤可以填：服务器地址、端口、加密方式（STARTTLS / SMTPS / 不加密）、用户名、密码、发件人地址；不想现在配就选「不启用」，之后在 **应用设置** 里再填（密码留空表示保持原密码）。
-
-写入的是 `app.ini` 的 `[mailer]`，并同时把 `[service] ENABLE_NOTIFY_MAIL` 对齐：
-
-```ini
-[mailer]
-ENABLED = true
-FROM = gitea@example.com
-PROTOCOL = smtp+starttls
-SMTP_ADDR = smtp.example.com
-SMTP_PORT = 587
-USER = gitea@example.com
-PASSWD = ******
-```
 
 ## 目录结构
 ├── manifest                  # 应用元数据（fnpack 必需）

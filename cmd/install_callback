@@ -91,70 +91,6 @@ pick_ssh_port() {
     return 1
 }
 
-# --- SMTP 参数 ----------------------------------------------------------------
-MAIL_ENABLE="${wizard_mail_enable:-false}"
-MAIL_HOST="${wizard_mail_host:-}"
-MAIL_PORT="${wizard_mail_port:-465}"
-MAIL_PROTOCOL="${wizard_mail_protocol:-smtps}"
-MAIL_USER="${wizard_mail_user:-}"
-MAIL_PASS="${wizard_mail_pass:-}"
-MAIL_FROM="${wizard_mail_from:-}"
-MAIL_SKIP_VERIFY="${wizard_mail_skip_verify:-false}"
-MAIL_BLOCK=""
-MAIL_NOTIFY="false"
-
-if [ "$MAIL_ENABLE" = "true" ]; then
-    [ -n "$MAIL_HOST" ] || fail "启用 SMTP 时必须填写服务器地址"
-    case "$MAIL_PORT" in
-        *[!0-9]*|"") fail "SMTP 端口必须是数字" ;;
-    esac
-    case "$MAIL_PROTOCOL" in
-        smtp|smtp+starttls|smtps) ;;
-        *) fail "SMTP 加密方式只支持 smtp / smtp+starttls / smtps" ;;
-    esac
-    [ -n "$MAIL_USER" ] || MAIL_USER="$MAIL_FROM"
-    [ -n "$MAIL_FROM" ] || MAIL_FROM="$MAIL_USER"
-    [ -n "$MAIL_FROM" ] || fail "启用 SMTP 时必须填写用户名或发件人地址"
-
-    # 先做一次真实投递测试，通了再写配置（失败的报错会直接显示在安装向导里）
-    msg "测试 SMTP 连接：${MAIL_HOST}:${MAIL_PORT}（${MAIL_PROTOCOL}）"
-    if [ -f "$APP_DEST/smtp_test.py" ] && command -v python3 >/dev/null 2>&1; then
-        extra_arg=""
-        [ "$MAIL_SKIP_VERIFY" = "true" ] && extra_arg="--skip-verify"
-        out="$(SMTP_PASSWD="$MAIL_PASS" timeout 25 python3 "$APP_DEST/smtp_test.py" \
-            --host "$MAIL_HOST" --port "$MAIL_PORT" --mode "$MAIL_PROTOCOL" \
-            --user "$MAIL_USER" --sender "$MAIL_FROM" $extra_arg 2>&1)"
-        rc=$?
-        printf '%s\n' "$out" >> "$LOG"
-        if [ "$rc" -ne 0 ]; then
-            detail="$(printf '%s' "$out" | tail -n 2 | tr '\n' ' ')"
-            fail "SMTP 测试失败（退出码 ${rc}）：${detail} 请检查地址/端口/加密方式/账号密码，或在向导里选择「不启用」跳过邮件。"
-        fi
-        msg "SMTP 测试通过"
-    else
-        msg "未找到 python3 或 smtp_test.py，只能做 TCP 连通性检查"
-        if ! (exec 3<>"/dev/tcp/${MAIL_HOST}/${MAIL_PORT}") 2>/dev/null; then
-            fail "无法连接 ${MAIL_HOST}:${MAIL_PORT}（TCP）。请检查地址/端口与 NAS 出网。"
-        fi
-    fi
-
-    MAIL_BLOCK=$(cat <<EOF
-
-[mailer]
-ENABLED = true
-FROM = ${MAIL_FROM}
-PROTOCOL = ${MAIL_PROTOCOL}
-SMTP_ADDR = ${MAIL_HOST}
-SMTP_PORT = ${MAIL_PORT}
-USER = ${MAIL_USER}
-PASSWD = ${MAIL_PASS}
-FORCE_TRUST_SERVER_CERT = ${MAIL_SKIP_VERIFY}
-EOF
-)
-    MAIL_NOTIFY="true"
-    msg "已启用 SMTP 发信：${MAIL_HOST}:${MAIL_PORT}（${MAIL_PROTOCOL}）"
-fi
-
 # 内置 Runner 开关（默认启用）
 RUNNER_ENABLE="${wizard_runner_enable:-true}"
 if [ "$RUNNER_ENABLE" = "false" ]; then
@@ -236,13 +172,10 @@ ROOT_PATH = ${APP_HOME}/log
 
 [service]
 DISABLE_REGISTRATION = ${DISABLE_REGISTRATION}
-REGISTER_EMAIL_CONFIRM = false
-ENABLE_NOTIFY_MAIL = ${MAIL_NOTIFY}
 ENABLE_CAPTCHA = true
 REQUIRE_SIGNIN_VIEW = false
 DEFAULT_ALLOW_CREATE_ORGANIZATION = true
 NO_REPLY_ADDRESS = noreply.${NAS_HOST}
-${MAIL_BLOCK}
 EOF
 
     if [ ! -s "$CONF" ]; then
