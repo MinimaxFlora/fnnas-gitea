@@ -6,20 +6,20 @@
 
 | 项目 | 说明 |
 | --- | --- |
-| 应用标识 | `gitea-native`（显示名 **Gitea**），与官方商店的 Gitea 互不冲突，可共存 |
+| 应用标识 | `gitea`（显示名 **Gitea**）；与官方商店同名，安装前请先卸载或停止官方版（两者都占用 3033） |
 | Web 端口 | `3033` |
 | SSH 端口 | 内置 SSH 服务，默认 `2222`（被占用时安装时自动顺延 2223–2229） |
-| 数据目录 | `/volX/@appdata/gitea-native`（安装时选择的存储空间） |
-| 配置目录 | `/volX/@appconf/gitea-native/app.ini` |
-| 安装目录 | `/volX/@appcenter/gitea-native`（即 `$TRIM_APPDEST`） |
+| 数据目录 | `/volX/@appdata/gitea`（安装时选择的存储空间） |
+| 配置目录 | `/volX/@appconf/gitea/app.ini` |
+| 安装目录 | `/volX/@appcenter/gitea`（即 `$TRIM_APPDEST`） |
 | 版本策略 | GitHub tag / Release 名称与上游 tag 完全一致（例如 `v28.4.0`） |
 
 ## 安装
 
 1. 打开飞牛 **应用中心 → 手动安装**（或「设置 → 手动安装应用」）
 2. 按设备架构选择安装包：
-   - x86 / amd64：`gitea-native_<版本>_amd64.fpk`
-   - ARM / arm64：`gitea-native_<版本>_arm64.fpk`
+   - x86 / amd64：`gitea_<版本>_amd64.fpk`
+   - ARM / arm64：`gitea_<版本>_arm64.fpk`
 3. 在安装向导里填写：
    - 管理员用户名（默认 `admin`）
    - 管理员密码（至少 8 位）
@@ -29,16 +29,16 @@
 
 安装阶段就会生成 `app.ini`、SQLite 数据库并创建管理员账号，**不需要**再走 Gitea 的网页安装器。
 
-## 从旧版（官方商店 Gitea）迁移
+## 从官方商店的旧版 Gitea 迁移
 
-两者的应用标识与数据目录不同，互不影响。如果要彻底改用本项目：
+本包的应用标识与官方版相同（`gitea`），所以**不能与官方版共存**，请按下面顺序切换：
 
-1. 先在应用中心**停止**官方商店的 Gitea（避免占用 3033 端口）
-2. 安装本项目的 fpk
-3. 如需迁移仓库，用 Gitea 自带命令导出/导入，或直接把旧数据目录里的 `data/gitea-repositories` 复制到 `/volX/@appdata/gitea-native/data/` 后重新扫描
-4. 确认新版本可用后，再卸载官方版并删除其数据
+1. 在应用中心**卸载**官方商店的 Gitea（先记下它的数据目录，通常是 `/volX/@appdata/gitea` 或 Docker 卷）
+2. 安装本包（向导里创建管理员）
+3. 如需迁移旧仓库：把旧数据里的 `data/gitea-repositories` 复制到新数据目录 `/volX/@appdata/gitea/data/` 后重启应用，仓库会重新扫描；配置不同（官方多跑在 Docker 里）建议直接用 Gitea 自带的迁移/导出功能
+4. 若之前装过本项目早期的测试包（应用标识 `gitea-native`），同样先卸载它再装本包；两者数据目录不同，不会自动迁移
 
-> 不建议把本包与官方版同时运行：两者都会占用 3033 端口。
+> 本包与官方版都占用 3033 端口，务必不要同时安装运行。
 
 ## 升级
 
@@ -55,7 +55,7 @@
 
 卸载向导会询问是否删除数据：
 
-- **保留现有文件**：只删除程序，`/volX/@appdata/gitea-native` 保留，重新安装可继续使用
+- **保留现有文件**：只删除程序，`/volX/@appdata/gitea` 保留，重新安装可继续使用
 - **清除所有数据**：删除数据与配置目录（不可恢复），脚本只会删除本应用自己的目录
 
 ## 目录结构
@@ -112,8 +112,8 @@ fnnas-gitea/
 ./scripts/build.sh --tag v28.4.0 --arch amd64
 
 # 产物
-dist/gitea-native_28.4.0_amd64.fpk
-dist/gitea-native_28.4.0_arm64.fpk
+dist/gitea_28.4.0_amd64.fpk
+dist/gitea_28.4.0_arm64.fpk
 dist/SHA256SUMS
 ```
 

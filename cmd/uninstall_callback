@@ -22,8 +22,8 @@ safe_rm() {
     local target="$1"
     [ -n "$target" ] || return 0
     case "$target" in
-        /vol*/@appdata/gitea-native|/vol*/@appdata/gitea-native/*) ;;
-        /usr/local/apps/@appdata/gitea-native|/usr/local/apps/@appdata/gitea-native/*) ;;
+        /vol*/@appdata/gitea|/vol*/@appdata/gitea/*) ;;
+        /usr/local/apps/@appdata/gitea|/usr/local/apps/@appdata/gitea/*) ;;
         *) msg "跳过非预期的路径：$target"; return 0 ;;
     esac
     rm -rf "$target"

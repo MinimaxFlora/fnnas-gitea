@@ -29,18 +29,19 @@ fi
 sha_of() { sha256sum "$1" 2>/dev/null | cut -d' ' -f1 || true; }
 size_of() { du -h "$1" 2>/dev/null | cut -f1 | tr -d ' ' || true; }
 
-amd="$DIST/gitea-native_${VERSION}_amd64.fpk"
-arm="$DIST/gitea-native_${VERSION}_arm64.fpk"
+amd="$DIST/gitea_${VERSION}_amd64.fpk"
+arm="$DIST/gitea_${VERSION}_arm64.fpk"
 
 cat <<EOF
 # Gitea ${TAG} for 飞牛 fnOS
 
 从上游 [Gitea ${TAG}](https://github.com/${UPSTREAM_REPO}/releases/tag/${TAG}) **源码直接编译**，非 Docker，打包为飞牛原生应用（.fpk）。
 
-- 应用标识：\`gitea-native\`（显示名 **Gitea**），可与官方商店里的旧版 Gitea 共存
+- 应用标识：\`gitea\`（显示名 **Gitea**）；与官方商店同名，安装前请先卸载或停止官方版（两者都占用 3033）
+- 若曾装过旧的测试包 \`gitea-native\`，请先在应用中心卸载它，再安装本包（数据目录不同，不会自动迁移）
 - Web：\`http://<NAS-IP>:3033\`
 - 内置 SSH：默认 \`2222\`（被占用时安装时会自动顺延到 2223-2229）
-- 数据目录：\`/volX/@appdata/gitea-native\`（安装时选择的存储空间）
+- 数据目录：\`/volX/@appdata/gitea\`（安装时选择的存储空间）
 EOF
 
 echo
@@ -49,10 +50,10 @@ echo
 echo "| 架构 | 文件 | 大小 | SHA256 |"
 echo "| --- | --- | --- | --- |"
 if [ -f "$amd" ]; then
-    echo "| x86 / amd64 | \`gitea-native_${VERSION}_amd64.fpk\` | $(size_of "$amd") | \`$(sha_of "$amd")\` |"
+    echo "| x86 / amd64 | \`gitea_${VERSION}_amd64.fpk\` | $(size_of "$amd") | \`$(sha_of "$amd")\` |"
 fi
 if [ -f "$arm" ]; then
-    echo "| ARM / arm64 | \`gitea-native_${VERSION}_arm64.fpk\` | $(size_of "$arm") | \`$(sha_of "$arm")\` |"
+    echo "| ARM / arm64 | \`gitea_${VERSION}_arm64.fpk\` | $(size_of "$arm") | \`$(sha_of "$arm")\` |"
 fi
 echo
 echo "> 校验：\`sha256sum -c SHA256SUMS\`"
@@ -70,7 +71,7 @@ cat <<'EOF'
 ## 首次使用要点
 
 - 无需再打开 Gitea 网页安装器：`app.ini` 与 SQLite 数据库在安装时已生成，管理员账号已创建
-- 内置 SSH 服务已启用，克隆地址形如 `ssh://gitea-native@<NAS-IP>:2222/<用户>/<仓库>.git`
+- 内置 SSH 服务已启用，克隆地址形如 `ssh://gitea@<NAS-IP>:2222/<用户>/<仓库>.git`
 - 若开启了飞牛防火墙，请放行 `3033/tcp` 与 `2222/tcp`
 - 通过域名/反向代理访问时，请在 **应用设置 → 访问地址** 里把 `ROOT_URL` 改成对外地址，否则仓库地址与邮件链接会指向内网 IP
 
@@ -118,3 +119,10 @@ echo "- 未修改任何上游业务代码，仅补充飞牛的生命周期脚本
 echo "- 上游源码：https://github.com/${UPSTREAM_REPO}/tree/${TAG}"
 echo "- 打包项目：https://github.com/MinimaxFlora/fnnas-gitea"
 echo "- 本包为社区维护，非飞牛官方应用；问题请到项目仓库反馈"
+
+if [ -n "${EXTRA_NOTES_FILE:-}" ] && [ -f "$EXTRA_NOTES_FILE" ]; then
+    echo
+    echo "## 本次打包修订"
+    echo
+    cat "$EXTRA_NOTES_FILE"
+fi

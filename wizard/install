@@ -4,7 +4,7 @@
     "items": [
       {
         "type": "tips",
-        "helpText": "安装向导会直接创建管理员账号，安装完成后即可用该账号登录，无需再打开网页安装器。<br>Web 访问端口固定为 <b>3033</b>，内置 SSH 服务端口会自动挑选空闲端口（优先 2222）。<br>数据保存在安装时选择的存储空间中：/volX/@appdata/gitea-native。"
+        "helpText": "安装向导会直接创建管理员账号，安装完成后即可用该账号登录，无需再打开网页安装器。<br>Web 访问端口固定为 <b>3033</b>，内置 SSH 服务端口会自动挑选空闲端口（优先 2222）。<br>数据保存在安装时选择的存储空间中：/volX/@appdata/gitea。"
       },
       {
         "type": "text",
@@ -32,7 +32,7 @@
         "initValue": "admin@fnos.local",
         "rules": [
           { "required": true, "message": "请填写管理员邮箱" },
-          { "pattern": "^[^@[:space:]]+@[^@[:space:]]+", "message": "邮箱格式不正确" }
+          { "pattern": "^\\S+@\\S+\\.\\S+$", "message": "邮箱格式不正确，请填写形如 user@example.com 的地址" }
         ]
       },
       {

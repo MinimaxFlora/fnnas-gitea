@@ -1,5 +1,5 @@
 #!/bin/bash
-# gitea-native 生命周期脚本
+# gitea 生命周期脚本
 # start : 启动 Gitea，已经运行则直接返回 0
 # stop  : 优雅停止（TERM -> 等待 -> KILL）
 # status: 运行中返回 0，未运行返回 3
@@ -27,8 +27,8 @@ HTTP_PORT="${TRIM_SERVICE_PORT:-3033}"
 
 BIN="$APP_DEST/gitea"
 CONF="$APP_ETC/app.ini"
-LOG_FILE="$APP_HOME/gitea-native.log"
-PID_FILE="$APP_HOME/gitea-native.pid"
+LOG_FILE="$APP_HOME/gitea.log"
+PID_FILE="$APP_HOME/gitea.pid"
 HOME_DIR="${TRIM_PKGHOME:-$APP_HOME}"
 
 log_msg() {
@@ -173,10 +173,10 @@ stop)
     ;;
 status)
     if is_running; then
-        echo "gitea-native is running (pid $(current_pid))"
+        echo "gitea is running (pid $(current_pid))"
         exit 0
     fi
-    echo "gitea-native is not running"
+    echo "gitea is not running"
     exit 3
     ;;
 log)

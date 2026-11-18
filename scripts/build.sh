@@ -7,11 +7,11 @@
 #   ./scripts/build.sh --skip-frontend      # 复用已构建的前端资源
 #
 # 依赖：git、go >= 1.27、node >= 22.18、pnpm >= 11、tar、curl
-# 产物：dist/gitea-native_<版本>_<架构>.fpk 与 SHA256SUMS
+# 产物：dist/gitea_<版本>_<架构>.fpk 与 SHA256SUMS
 
 set -euo pipefail
 
-APP_NAME="gitea-native"
+APP_NAME="gitea"
 UPSTREAM_REPO="go-gitea/gitea"
 UPSTREAM_URL="https://github.com/${UPSTREAM_REPO}.git"
 TAGS="bindata sqlite sqlite_unlock_notify"
