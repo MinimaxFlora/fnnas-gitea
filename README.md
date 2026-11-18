@@ -133,6 +133,8 @@ dist/SHA256SUMS
 
 `.github/workflows/build-release.yml`：
 
+- 运行环境固定为 `ubuntu-26.04`（不用 `ubuntu-latest`，避免系统版本迁移带来的不确定性）
+- 全部 action 使用 Node 24 基线的版本：`actions/checkout@v7`、`pnpm/action-setup@v6`、`actions/setup-node@v7`、`actions/setup-go@v7`、`actions/upload-artifact@v7`
 - **每天 03:17 定时检查**上游是否有新 release，有则自动构建并发布
 - 也可在 Actions 页面手动触发，指定 tag（留空取最新）或强制重建
 - Release 的 **tag 与名称和上游 tag 完全一致**（如 `v28.4.0`），并附两个 fpk 与 `SHA256SUMS`
